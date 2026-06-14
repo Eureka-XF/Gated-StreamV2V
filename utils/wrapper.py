@@ -1,5 +1,6 @@
 import gc
 import os
+import sys
 from pathlib import Path
 import traceback
 from typing import List, Literal, Optional, Union, Dict
@@ -22,6 +23,10 @@ from src.streamv2v.models.similarity_gate_attention import SimilarityGateCachedS
 torch.set_grad_enabled(False)
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
+DEFAULT_LCM_LORA_ID = os.environ.get(
+    "GSV2V_LCM_LORA_ID",
+    "latent-consistency/lcm-lora-sdv1-5",
+)
 
 
 class StreamV2VWrapper:
@@ -386,7 +391,7 @@ class StreamV2VWrapper:
                         adapter_name="lcm")
                 else:
                     stream.load_lcm_lora(
-                        pretrained_model_name_or_path_or_dict="/home/zrj/project/ori_v2v/streamv2v/data/checkpoints/lcm-lora-sdv1-5",
+                        pretrained_model_name_or_path_or_dict=DEFAULT_LCM_LORA_ID,
                         adapter_name="lcm"
                         )
 

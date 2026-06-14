@@ -4,10 +4,16 @@ import time
 from typing import Literal, Dict, Optional
 import cv2
 import fire
+import numpy as np
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_MODEL_ID = os.environ.get("GSV2V_MODEL_ID", "runwayml/stable-diffusion-v1-5")
+DEFAULT_LCM_LORA_ID = os.environ.get(
+    "GSV2V_LCM_LORA_ID",
+    "latent-consistency/lcm-lora-sdv1-5",
+)
 
 
 
@@ -15,12 +21,11 @@ CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 def main(
     input: str,
     prompt: str,
-    # TODO -ZRJ- You can choose the cuda_visible_devices.
-    cuda_visible_devices: str = "7",
+    cuda_visible_devices: Optional[str] = None,
     video_name: str = None,
     output_dir: str = os.path.join(CURRENT_DIR, "tests/vid"),
-    # TODO -ZRJ- If use batch_eval: The model_id in the JSON file needs to be modified.
-    model_id: str = "/home/zrj/project/ori_v2v/streamv2v/data/checkpoints/stable-diffusion-1.5",
+    model_id: str = DEFAULT_MODEL_ID,
+    lcm_lora_id: Optional[str] = DEFAULT_LCM_LORA_ID,
     scale: float = 1.0,
     guidance_scale: float = 1.0,
     diffusion_steps: int = 4,
@@ -45,11 +50,12 @@ def main(
     use_attn_concat: bool = True,
     ttt_lr: float = 1.0,
 ):
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(cuda_visible_devices)
+    if cuda_visible_devices is not None:
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(cuda_visible_devices)
     if vis:
-        print(f"CUDA_VISIBLE_DEVICES: {os.environ['CUDA_VISIBLE_DEVICES']}")
+        print(f"CUDA_VISIBLE_DEVICES: {os.environ.get('CUDA_VISIBLE_DEVICES', '<unset>')}")
     import torch
-    from torchvision.io import read_video, write_video
+    from torchvision.io import read_video
     from tqdm import tqdm
     from utils.wrapper import StreamV2VWrapper
 
@@ -149,8 +155,7 @@ def main(
     seed: int, optional
         The seed, by default 2. if -1, use random seed.
     """
-    if not os.path.exists(output_dir):
-        os.mkdir(output_dir)
+    os.makedirs(output_dir, exist_ok=True)
 
     if use_random_cache_interval:
         print("Use random cache interval")
@@ -174,6 +179,7 @@ def main(
 
     stream = StreamV2VWrapper(
         model_id_or_path=model_id,
+        lcm_lora_id=lcm_lora_id,
         mode="img2img",
         t_index_list=t_index_list,
         frame_buffer_size=1,

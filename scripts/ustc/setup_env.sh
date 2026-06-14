@@ -25,8 +25,8 @@ python -m pip install -U pip wheel
 python -m pip install "setuptools==69.5.1"
 
 python -m pip install \
-  torch==2.1.0 \
-  torchvision==0.16.0 \
+  torch==2.1.1 \
+  torchvision==0.16.1 \
   xformers==0.0.23 \
   --index-url https://download.pytorch.org/whl/cu121
 

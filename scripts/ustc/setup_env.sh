@@ -5,11 +5,13 @@ PROJECT_DIR="${PROJECT_DIR:-/home/scc/pb22020481/projects/Gated-StreamV2V}"
 CONDA_ROOT="${CONDA_ROOT:-/public/app/miniconda3/py312_24.4.0-0}"
 ENV_DIR="${ENV_DIR:-/home/scc/pb22020481/conda-envs/gated-streamv2v}"
 PYPI_INDEX_URL="${PYPI_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}"
+PYTORCH_INDEX_URL="${PYTORCH_INDEX_URL:-https://download.pytorch.org/whl/cu128}"
 
 echo "PROJECT_DIR=$PROJECT_DIR"
 echo "CONDA_ROOT=$CONDA_ROOT"
 echo "ENV_DIR=$ENV_DIR"
 echo "PYPI_INDEX_URL=$PYPI_INDEX_URL"
+echo "PYTORCH_INDEX_URL=$PYTORCH_INDEX_URL"
 
 if [ ! -x "$CONDA_ROOT/bin/conda" ]; then
   echo "Cannot find conda at $CONDA_ROOT/bin/conda" >&2
@@ -27,10 +29,11 @@ python -m pip install -i "$PYPI_INDEX_URL" -U pip wheel
 python -m pip install -i "$PYPI_INDEX_URL" "setuptools==69.5.1"
 
 python -m pip install \
-  torch==2.1.1 \
-  torchvision==0.16.1 \
-  xformers==0.0.23 \
-  --index-url https://download.pytorch.org/whl/cu121 \
+  --upgrade \
+  torch==2.7.0 \
+  torchvision==0.22.0 \
+  xformers==0.0.30 \
+  --index-url "$PYTORCH_INDEX_URL" \
   --extra-index-url "$PYPI_INDEX_URL"
 
 python -m pip install -i "$PYPI_INDEX_URL" \

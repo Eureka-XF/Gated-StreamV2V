@@ -128,3 +128,73 @@ fps: 25.0
 width: 912
 height: 512
 ```
+
+## Paper-Level Reproduction
+
+Chapter 5 of the thesis is reproduced as a staged experiment rather than a
+single demo video.
+
+Prepare the environment and assets first:
+
+```bash
+cd /home/scc/pb22020481/projects/Gated-StreamV2V
+bash scripts/ustc/setup_env.sh
+bash scripts/ustc/prepare_assets.sh
+```
+
+Stage 0 smoke test: run `tennis_ukiyoe_0` with the four method settings and
+then run metrics on that one task:
+
+```bash
+cd /home/scc/pb22020481/projects/Gated-StreamV2V
+bash scripts/ustc/submit_stage0_smoke.sh
+```
+
+Main table 5-1:
+
+```bash
+sbatch --export=ALL,METHOD=streamv2v_origin scripts/ustc/run_paper_batch.sbatch
+sbatch --export=ALL,METHOD=gated_similarity_reverse scripts/ustc/run_paper_batch.sbatch
+```
+
+Ablation tables 5-3 and 5-4:
+
+```bash
+sbatch --export=ALL,METHOD=gated_similarity_forward scripts/ustc/run_paper_batch.sbatch
+sbatch --export=ALL,METHOD=confidence_gate scripts/ustc/run_paper_batch.sbatch
+```
+
+Metrics for any completed method:
+
+```bash
+sbatch --export=ALL,METHOD=streamv2v_origin scripts/ustc/run_paper_metrics.sbatch
+sbatch --export=ALL,METHOD=gated_similarity_reverse scripts/ustc/run_paper_metrics.sbatch
+sbatch --export=ALL,METHOD=gated_similarity_forward scripts/ustc/run_paper_metrics.sbatch
+sbatch --export=ALL,METHOD=confidence_gate scripts/ustc/run_paper_metrics.sbatch
+```
+
+High-resolution benchmark table 5-2:
+
+```bash
+sbatch scripts/ustc/run_highres_benchmark.sbatch
+```
+
+Summarize all available results:
+
+```bash
+cd /home/scc/pb22020481/projects/Gated-StreamV2V
+python scripts/ustc/summarize_paper_repro.py
+```
+
+The report is written to:
+
+```text
+reports/ustc_paper_repro/summary.md
+```
+
+Method names:
+
+- `streamv2v_origin`: original StreamV2V baseline.
+- `gated_similarity_reverse`: thesis default Gated-StreamV2V.
+- `gated_similarity_forward`: similarity-gate direction ablation.
+- `confidence_gate`: confidence-gate ablation.

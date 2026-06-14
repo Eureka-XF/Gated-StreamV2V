@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import json
 from typing import Literal, Dict, Optional
 import cv2
 import fire
@@ -49,6 +50,7 @@ def main(
     vis: bool = False,
     use_attn_concat: bool = True,
     ttt_lr: float = 1.0,
+    benchmark_json: Optional[str] = None,
 ):
     if cuda_visible_devices is not None:
         os.environ["CUDA_VISIBLE_DEVICES"] = str(cuda_visible_devices)
@@ -58,6 +60,9 @@ def main(
     from torchvision.io import read_video
     from tqdm import tqdm
     from utils.wrapper import StreamV2VWrapper
+
+    if torch.cuda.is_available():
+        torch.cuda.reset_peak_memory_stats()
 
     def write_video_opencv(output_path, frames, fps=30):
         """
@@ -252,7 +257,9 @@ def main(
         video_result[i] = output_image.permute(1, 2, 0)
         iteration_end_time = time.time()
         inference_time.append(iteration_end_time -iteration_start_time )
-    print(f'Avg time: {sum(inference_time[20:])/len(inference_time[20:])}')
+    timed_frames = inference_time[20:] if len(inference_time) > 20 else inference_time
+    avg_time = sum(timed_frames) / len(timed_frames)
+    print(f'Avg time: {avg_time}')
 
     video_result = video_result * 255
     prompt_txt = prompt.replace(' ', '-')
@@ -263,6 +270,43 @@ def main(
     else:
         output = os.path.join(output_dir, f"{video_name}.mp4")
     write_video_opencv(output, [frame.numpy().astype("uint8") for frame in video_result], fps=float(fps))
+
+    if benchmark_json is not None:
+        peak_allocated_gb = None
+        peak_reserved_gb = None
+        gpu_name = None
+        if torch.cuda.is_available():
+            peak_allocated_gb = torch.cuda.max_memory_allocated() / (1024 ** 3)
+            peak_reserved_gb = torch.cuda.max_memory_reserved() / (1024 ** 3)
+            gpu_name = torch.cuda.get_device_name(0)
+
+        benchmark = {
+            "status": "success",
+            "input": input,
+            "prompt": prompt,
+            "output": output,
+            "video_name": video_name,
+            "model_id": model_id,
+            "lcm_lora_id": lcm_lora_id,
+            "cached_attn_style": cached_attn_style,
+            "reverse_tag": reverse_tag,
+            "scale": scale,
+            "width": width,
+            "height": height,
+            "frames": int(video.shape[0]),
+            "fps": float(fps),
+            "diffusion_steps": diffusion_steps,
+            "noise_strength": noise_strength,
+            "avg_time_seconds": avg_time,
+            "peak_allocated_gb": peak_allocated_gb,
+            "peak_reserved_gb": peak_reserved_gb,
+            "gpu_name": gpu_name,
+        }
+        benchmark_path = os.path.abspath(benchmark_json)
+        os.makedirs(os.path.dirname(benchmark_path), exist_ok=True)
+        with open(benchmark_path, "w", encoding="utf-8") as file:
+            json.dump(benchmark, file, sort_keys=True, indent=4)
+        print(f"Benchmark saved to: {benchmark_path}")
 
 
 if __name__ == "__main__":

@@ -15,6 +15,9 @@ export GSV2V_RAFT_WEIGHTS="${GSV2V_RAFT_WEIGHTS:-$PROJECT_DIR/data/checkpoints/r
 
 LORA_FOLDER_URL="${LORA_FOLDER_URL:-https://drive.google.com/drive/folders/1D7g-dnCQnjjogTPX-B3fttgdrp9nKeKw}"
 LORA_DIR="${LORA_DIR:-$PROJECT_DIR/vid2vid/lora_weights}"
+RAFT_URL="${RAFT_URL:-https://download.pytorch.org/models/raft_large_C_T_SKHT_V2-ff5fadd5.pth}"
+
+export PROJECT_DIR LORA_FOLDER_URL LORA_DIR RAFT_URL
 
 echo "PROJECT_DIR=$PROJECT_DIR"
 echo "ENV_DIR=$ENV_DIR"
@@ -38,31 +41,65 @@ import os
 
 from huggingface_hub import snapshot_download
 
-for label, repo_id in [
-    ("Stable Diffusion", os.environ["GSV2V_MODEL_ID"]),
-    ("LCM-LoRA", os.environ["GSV2V_LCM_LORA_ID"]),
-    ("CLIP", os.environ["GSV2V_CLIP_MODEL_ID"]),
-]:
+downloads = [
+    (
+        "Stable Diffusion",
+        os.environ["GSV2V_MODEL_ID"],
+        [
+            "model_index.json",
+            "scheduler/*",
+            "tokenizer/*",
+            "text_encoder/*",
+            "unet/*",
+            "vae/*",
+            "feature_extractor/*",
+            "safety_checker/*",
+        ],
+    ),
+    (
+        "LCM-LoRA",
+        os.environ["GSV2V_LCM_LORA_ID"],
+        ["*.json", "*.safetensors", "*.bin", "*.md"],
+    ),
+    (
+        "CLIP",
+        os.environ["GSV2V_CLIP_MODEL_ID"],
+        [
+            "*.json",
+            "*.txt",
+            "merges.txt",
+            "vocab.json",
+            "preprocessor_config.json",
+            "pytorch_model.bin",
+            "model.safetensors",
+        ],
+    ),
+]
+
+for label, repo_id, allow_patterns in downloads:
     print(f"Prefetch {label}: {repo_id}")
-    snapshot_download(repo_id=repo_id)
+    snapshot_download(repo_id=repo_id, allow_patterns=allow_patterns)
 PY
 
-python - <<'PY'
+if [[ -s "$GSV2V_RAFT_WEIGHTS" ]]; then
+  echo "RAFT weights already exist: $GSV2V_RAFT_WEIGHTS"
+else
+  echo "Downloading RAFT weights: $RAFT_URL"
+  if command -v curl >/dev/null 2>&1; then
+    curl -L --fail --retry 3 --retry-delay 5 "$RAFT_URL" -o "$GSV2V_RAFT_WEIGHTS"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -O "$GSV2V_RAFT_WEIGHTS" "$RAFT_URL"
+  else
+    python - <<'PY'
 import os
-import torch
-from torchvision.models.optical_flow import Raft_Large_Weights
+import urllib.request
 
-out_path = os.environ["GSV2V_RAFT_WEIGHTS"]
-os.makedirs(os.path.dirname(out_path), exist_ok=True)
-if os.path.exists(out_path) and os.path.getsize(out_path) > 0:
-    print("RAFT weights already exist:", out_path)
-else:
-    print("Downloading torchvision RAFT Large C_T_SKHT_V2 weights")
-    weights = Raft_Large_Weights.C_T_SKHT_V2
-    state_dict = weights.get_state_dict(progress=True)
-    torch.save(state_dict, out_path)
-    print("Saved RAFT weights:", out_path)
+urllib.request.urlretrieve(os.environ["RAFT_URL"], os.environ["GSV2V_RAFT_WEIGHTS"])
 PY
+  fi
+  test -s "$GSV2V_RAFT_WEIGHTS"
+  echo "Saved RAFT weights: $GSV2V_RAFT_WEIGHTS"
+fi
 
 python - <<'PY'
 import os

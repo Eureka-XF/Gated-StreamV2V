@@ -6,6 +6,8 @@ REPORT_DIR="${REPORT_DIR:-$PROJECT_DIR/reports/ustc_paper_repro}"
 SMOKE_VID_NAME="${SMOKE_VID_NAME:-tennis_ukiyoe_0}"
 SMOKE_SET_FILE="$REPORT_DIR/stage0_${SMOKE_VID_NAME}.json"
 
+export PROJECT_DIR REPORT_DIR SMOKE_VID_NAME SMOKE_SET_FILE
+
 mkdir -p "$REPORT_DIR"
 
 python - <<'PY'

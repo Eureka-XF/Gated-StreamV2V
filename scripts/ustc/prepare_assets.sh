@@ -111,41 +111,42 @@ out_dir = os.environ["LORA_DIR"]
 downloads = [
     (
         "PixelArtRedmond15V-PixelArt-PIXARFK.safetensors",
-        "https://drive.google.com/file/d/1_-kEVFw_LnV1J2Nho6nZt4PUbymamypK/view?usp=drive_link",
+        "1_-kEVFw_LnV1J2Nho6nZt4PUbymamypK",
     ),
     (
         "low_poly.safetensors",
-        "https://drive.google.com/file/d/1ZClfRljzKmxsU1Jj5OMwIuXQcnA1DwO9/view?usp=drive_link",
+        "1ZClfRljzKmxsU1Jj5OMwIuXQcnA1DwO9",
     ),
     (
         "Claymation.safetensors",
-        "https://drive.google.com/file/d/1GvPCbrPqJYj0_nRppSc2UD_1eRME-1tG/view?usp=drive_link",
+        "1GvPCbrPqJYj0_nRppSc2UD_1eRME-1tG",
     ),
     (
         "doodle.safetensors",
-        "https://drive.google.com/file/d/12ZMOy8CMzwB32RHSmff0h2TJC3lFDBmW/view?usp=drive_link",
+        "12ZMOy8CMzwB32RHSmff0h2TJC3lFDBmW",
     ),
     (
         "Sketch_offcolor.safetensors",
-        "https://drive.google.com/file/d/1NIBujegFMvFdjCW0vdrmD6fbNFKNROE4/view?usp=drive_link",
+        "1NIBujegFMvFdjCW0vdrmD6fbNFKNROE4",
     ),
     (
         "bichu-v0612.safetensors",
-        "https://drive.google.com/file/d/1fmS3fGeja0RM8YbZtbKw20fjXNzHrnxz/view?usp=drive_link",
+        "1fmS3fGeja0RM8YbZtbKw20fjXNzHrnxz",
     ),
 ]
 
 print("Downloading LoRA files into:", out_dir)
-for filename, url in downloads:
+for filename, file_id in downloads:
     output = os.path.join(out_dir, filename)
     if os.path.exists(output) and os.path.getsize(output) > 1_000_000:
         print("LoRA already exists:", output)
         continue
     print("Downloading LoRA:", filename)
+    url = f"https://drive.google.com/uc?id={file_id}"
     try:
-        gdown.download(url=url, output=output, quiet=False, fuzzy=True, use_cookies=False)
+        gdown.download(url=url, output=output, quiet=False, use_cookies=False)
     except TypeError:
-        gdown.download(url=url, output=output, quiet=False, fuzzy=True)
+        gdown.download(url=url, output=output, quiet=False)
     except Exception as exc:
         print(f"LoRA download failed for {filename}: {exc}", file=sys.stderr)
 PY

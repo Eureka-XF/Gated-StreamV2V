@@ -16,8 +16,9 @@ export GSV2V_RAFT_WEIGHTS="${GSV2V_RAFT_WEIGHTS:-$PROJECT_DIR/data/checkpoints/r
 LORA_FOLDER_URL="${LORA_FOLDER_URL:-https://drive.google.com/drive/folders/1D7g-dnCQnjjogTPX-B3fttgdrp9nKeKw}"
 LORA_DIR="${LORA_DIR:-$PROJECT_DIR/vid2vid/lora_weights}"
 RAFT_URL="${RAFT_URL:-https://download.pytorch.org/models/raft_large_C_T_SKHT_V2-ff5fadd5.pth}"
+LORA_DOWNLOAD_TIMEOUT="${LORA_DOWNLOAD_TIMEOUT:-1800}"
 
-export PROJECT_DIR LORA_FOLDER_URL LORA_DIR RAFT_URL
+export PROJECT_DIR LORA_FOLDER_URL LORA_DIR RAFT_URL LORA_DOWNLOAD_TIMEOUT
 
 echo "PROJECT_DIR=$PROJECT_DIR"
 echo "ENV_DIR=$ENV_DIR"
@@ -101,20 +102,52 @@ PY
   echo "Saved RAFT weights: $GSV2V_RAFT_WEIGHTS"
 fi
 
-python - <<'PY'
+timeout "$LORA_DOWNLOAD_TIMEOUT" python - <<'PY'
 import os
 import sys
 import gdown
 
-url = os.environ["LORA_FOLDER_URL"]
 out_dir = os.environ["LORA_DIR"]
-print("Downloading LoRA folder:", url)
-try:
-    gdown.download_folder(url=url, output=out_dir, quiet=False, use_cookies=False)
-except TypeError:
-    gdown.download_folder(url=url, output=out_dir, quiet=False)
-except Exception as exc:
-    print("LoRA download failed:", exc, file=sys.stderr)
+downloads = [
+    (
+        "PixelArtRedmond15V-PixelArt-PIXARFK.safetensors",
+        "https://drive.google.com/file/d/1_-kEVFw_LnV1J2Nho6nZt4PUbymamypK/view?usp=drive_link",
+    ),
+    (
+        "low_poly.safetensors",
+        "https://drive.google.com/file/d/1ZClfRljzKmxsU1Jj5OMwIuXQcnA1DwO9/view?usp=drive_link",
+    ),
+    (
+        "Claymation.safetensors",
+        "https://drive.google.com/file/d/1GvPCbrPqJYj0_nRppSc2UD_1eRME-1tG/view?usp=drive_link",
+    ),
+    (
+        "doodle.safetensors",
+        "https://drive.google.com/file/d/12ZMOy8CMzwB32RHSmff0h2TJC3lFDBmW/view?usp=drive_link",
+    ),
+    (
+        "Sketch_offcolor.safetensors",
+        "https://drive.google.com/file/d/1NIBujegFMvFdjCW0vdrmD6fbNFKNROE4/view?usp=drive_link",
+    ),
+    (
+        "bichu-v0612.safetensors",
+        "https://drive.google.com/file/d/1fmS3fGeja0RM8YbZtbKw20fjXNzHrnxz/view?usp=drive_link",
+    ),
+]
+
+print("Downloading LoRA files into:", out_dir)
+for filename, url in downloads:
+    output = os.path.join(out_dir, filename)
+    if os.path.exists(output) and os.path.getsize(output) > 1_000_000:
+        print("LoRA already exists:", output)
+        continue
+    print("Downloading LoRA:", filename)
+    try:
+        gdown.download(url=url, output=output, quiet=False, fuzzy=True, use_cookies=False)
+    except TypeError:
+        gdown.download(url=url, output=output, quiet=False, fuzzy=True)
+    except Exception as exc:
+        print(f"LoRA download failed for {filename}: {exc}", file=sys.stderr)
 PY
 
 python - <<'PY'
@@ -131,7 +164,11 @@ required = [
     "Sketch_offcolor.safetensors",
     "bichu-v0612.safetensors",
 ]
-missing = [name for name in required if not (lora_dir / name).exists()]
+missing = [
+    name
+    for name in required
+    if not (lora_dir / name).exists() or (lora_dir / name).stat().st_size <= 1_000_000
+]
 if missing:
     print("Missing LoRA weights:", file=sys.stderr)
     for name in missing:

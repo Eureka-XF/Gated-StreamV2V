@@ -16,7 +16,7 @@ export GSV2V_RAFT_WEIGHTS="${GSV2V_RAFT_WEIGHTS:-$PROJECT_DIR/data/checkpoints/r
 LORA_FOLDER_URL="${LORA_FOLDER_URL:-https://drive.google.com/drive/folders/1D7g-dnCQnjjogTPX-B3fttgdrp9nKeKw}"
 LORA_DIR="${LORA_DIR:-$PROJECT_DIR/vid2vid/lora_weights}"
 RAFT_URL="${RAFT_URL:-https://download.pytorch.org/models/raft_large_C_T_SKHT_V2-ff5fadd5.pth}"
-LORA_DOWNLOAD_TIMEOUT="${LORA_DOWNLOAD_TIMEOUT:-1800}"
+LORA_DOWNLOAD_TIMEOUT="${LORA_DOWNLOAD_TIMEOUT:-120}"
 
 export PROJECT_DIR LORA_FOLDER_URL LORA_DIR RAFT_URL LORA_DOWNLOAD_TIMEOUT
 
@@ -31,8 +31,6 @@ echo "LORA_DIR=$LORA_DIR"
 
 source "$CONDA_ROOT/etc/profile.d/conda.sh"
 conda activate "$ENV_DIR"
-
-python -m pip install -i "$PYPI_INDEX_URL" -U gdown
 
 mkdir -p "$PROJECT_DIR/data/checkpoints"
 mkdir -p "$LORA_DIR"
@@ -102,54 +100,56 @@ PY
   echo "Saved RAFT weights: $GSV2V_RAFT_WEIGHTS"
 fi
 
-timeout "$LORA_DOWNLOAD_TIMEOUT" python - <<'PY'
-import os
-import sys
-import gdown
+download_lora() {
+  local filename="$1"
+  local url="$2"
+  local required="$3"
+  local output="$LORA_DIR/$filename"
+  local tmp="$output.tmp"
 
-out_dir = os.environ["LORA_DIR"]
-downloads = [
-    (
-        "PixelArtRedmond15V-PixelArt-PIXARFK.safetensors",
-        "1_-kEVFw_LnV1J2Nho6nZt4PUbymamypK",
-    ),
-    (
-        "low_poly.safetensors",
-        "1ZClfRljzKmxsU1Jj5OMwIuXQcnA1DwO9",
-    ),
-    (
-        "Claymation.safetensors",
-        "1GvPCbrPqJYj0_nRppSc2UD_1eRME-1tG",
-    ),
-    (
-        "doodle.safetensors",
-        "12ZMOy8CMzwB32RHSmff0h2TJC3lFDBmW",
-    ),
-    (
-        "Sketch_offcolor.safetensors",
-        "1NIBujegFMvFdjCW0vdrmD6fbNFKNROE4",
-    ),
-    (
-        "bichu-v0612.safetensors",
-        "1fmS3fGeja0RM8YbZtbKw20fjXNzHrnxz",
-    ),
-]
+  if [[ -s "$output" ]] && [[ "$(stat -c%s "$output" 2>/dev/null || stat -f%z "$output")" -gt 1000000 ]]; then
+    echo "LoRA already exists: $output"
+    return 0
+  fi
 
-print("Downloading LoRA files into:", out_dir)
-for filename, file_id in downloads:
-    output = os.path.join(out_dir, filename)
-    if os.path.exists(output) and os.path.getsize(output) > 1_000_000:
-        print("LoRA already exists:", output)
-        continue
-    print("Downloading LoRA:", filename)
-    url = f"https://drive.google.com/uc?id={file_id}"
-    try:
-        gdown.download(url=url, output=output, quiet=False, use_cookies=False)
-    except TypeError:
-        gdown.download(url=url, output=output, quiet=False)
-    except Exception as exc:
-        print(f"LoRA download failed for {filename}: {exc}", file=sys.stderr)
-PY
+  echo "Downloading LoRA: $filename"
+  rm -f "$tmp"
+  if command -v curl >/dev/null 2>&1; then
+    if timeout "$LORA_DOWNLOAD_TIMEOUT" curl -L --fail --retry 2 --retry-delay 5 -o "$tmp" "$url"; then
+      mv "$tmp" "$output"
+      echo "Saved LoRA: $output"
+      return 0
+    fi
+  elif command -v wget >/dev/null 2>&1; then
+    if timeout "$LORA_DOWNLOAD_TIMEOUT" wget -O "$tmp" "$url"; then
+      mv "$tmp" "$output"
+      echo "Saved LoRA: $output"
+      return 0
+    fi
+  fi
+  rm -f "$tmp"
+
+  if [[ "$required" == "required" ]]; then
+    echo "Required LoRA download failed: $filename" >&2
+    return 1
+  fi
+  echo "Optional LoRA unavailable: $filename" >&2
+  return 0
+}
+
+echo "Preparing LoRA files in: $LORA_DIR"
+download_lora \
+  "PixelArtRedmond15V-PixelArt-PIXARFK.safetensors" \
+  "${PIXELART_LORA_URL:-$HF_ENDPOINT/artificialguybr/pixelartredmond-1-5v-pixel-art-loras-for-sd-1-5/resolve/main/PixelArtRedmond15V-PixelArt-PIXARFK.safetensors}" \
+  required
+download_lora \
+  "Sketch_offcolor.safetensors" \
+  "${SKETCH_LORA_URL:-https://civitai.com/api/download/models/174421}" \
+  required
+download_lora \
+  "bichu-v0612.safetensors" \
+  "${OILPAINTING_LORA_URL:-https://civitai.com/api/download/models/94277}" \
+  required
 
 python - <<'PY'
 import os
@@ -159,9 +159,6 @@ from pathlib import Path
 lora_dir = Path(os.environ["LORA_DIR"])
 required = [
     "PixelArtRedmond15V-PixelArt-PIXARFK.safetensors",
-    "low_poly.safetensors",
-    "Claymation.safetensors",
-    "doodle.safetensors",
     "Sketch_offcolor.safetensors",
     "bichu-v0612.safetensors",
 ]
@@ -174,8 +171,17 @@ if missing:
     print("Missing LoRA weights:", file=sys.stderr)
     for name in missing:
         print("  -", lora_dir / name, file=sys.stderr)
-    print("The Google Drive download may require manual access or a Civitai fallback.", file=sys.stderr)
+    print("Upload the missing files to vid2vid/lora_weights or provide reachable *_LORA_URL overrides.", file=sys.stderr)
     raise SystemExit(1)
-print("All expected LoRA weights are present.")
+optional = [
+    "low_poly.safetensors",
+    "Claymation.safetensors",
+    "doodle.safetensors",
+]
+for name in optional:
+    path = lora_dir / name
+    if not path.exists():
+        print("Optional LoRA not present:", path)
+print("All paper-reproduction LoRA weights are present.")
 print("Assets are ready.")
 PY

@@ -3,6 +3,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
 
@@ -149,6 +150,18 @@ def parse_arguments() -> argparse.Namespace:
         help="Python executable used to launch main.py.",
     )
     parser.add_argument(
+        "--retries",
+        type=int,
+        default=2,
+        help="Retry count for each video task after a subprocess failure.",
+    )
+    parser.add_argument(
+        "--retry_delay",
+        type=float,
+        default=10.0,
+        help="Seconds to wait between task retries.",
+    )
+    parser.add_argument(
         "--dry_run",
         type=str_to_bool,
         default=False,
@@ -203,11 +216,11 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     rows = filtered_rows(load_jsonl(json_file), args)
-    print(f"Loaded {len(rows)} task(s) from {json_file}")
-    print(f"Output directory: {output_dir.resolve()}")
-    print(f"Subprocess working directory: {script_dir}")
-    print(f"cached_attn_style: {args.cached_attn_style}")
-    print(f"reverse_tag: {bool_arg(args.reverse_tag)}")
+    print(f"Loaded {len(rows)} task(s) from {json_file}", flush=True)
+    print(f"Output directory: {output_dir.resolve()}", flush=True)
+    print(f"Subprocess working directory: {script_dir}", flush=True)
+    print(f"cached_attn_style: {args.cached_attn_style}", flush=True)
+    print(f"reverse_tag: {bool_arg(args.reverse_tag)}", flush=True)
 
     completed = 0
     skipped = 0
@@ -218,7 +231,7 @@ def main() -> None:
 
         output_video = output_dir / f"{vid_name}.mp4"
         if args.skip_existing and output_video.exists() and output_video.stat().st_size > 0:
-            print(f"video already exists, skip: {output_video}")
+            print(f"video already exists, skip: {output_video}", flush=True)
             skipped += 1
             continue
 
@@ -280,13 +293,26 @@ def main() -> None:
         if args.lcm_lora_id:
             command.extend(["--lcm_lora_id", args.lcm_lora_id])
 
-        print("Running:", " ".join(command))
+        print("Running:", " ".join(command), flush=True)
         if args.dry_run:
             continue
-        subprocess.run(command, check=True, cwd=script_dir)
+        for attempt in range(args.retries + 1):
+            try:
+                subprocess.run(command, check=True, cwd=script_dir)
+                break
+            except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+                if attempt >= args.retries:
+                    raise
+                wait_seconds = max(args.retry_delay, 0.0)
+                print(
+                    f"Task failed for {vid_name} on attempt {attempt + 1}/{args.retries + 1}: {exc}. "
+                    f"Retrying in {wait_seconds:g}s...",
+                    flush=True,
+                )
+                time.sleep(wait_seconds)
         completed += 1
 
-    print(f"Done. completed={completed} skipped={skipped} total={len(rows)}")
+    print(f"Done. completed={completed} skipped={skipped} total={len(rows)}", flush=True)
 
 
 if __name__ == "__main__":
